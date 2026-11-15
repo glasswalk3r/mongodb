@@ -1,0 +1,2 @@
+# {{ ansible_managed }}
+ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="{{ mongod_block_devices }}", ATTR{queue/read_ahead_kb}="{{ mongod_readahead_kb }}", ATTR{queue/scheduler}="{{ mongod_io_scheduler }}"

@@ -1,0 +1,63 @@
+---
+- name: Install the THP systemd unit
+  ansible.builtin.template:
+    src: mongod-thp.service.j2
+    dest: /etc/systemd/system/mongod-thp.service
+    mode: "0644"
+  register: mongod_thp_unit
+
+- name: Enable and apply the THP unit
+  ansible.builtin.systemd_service:
+    name: mongod-thp.service
+    enabled: true
+    state: "{{ 'restarted' if mongod_thp_unit is changed else 'started' }}"
+    daemon_reload: "{{ mongod_thp_unit is changed }}"
+
+- name: Gather package facts
+  ansible.builtin.package_facts:
+
+- name: Configure a tuned profile that keeps the THP setting
+  when: "'tuned' in ansible_facts.packages"
+  vars:
+    mongod_tuned_dir: "{{ '/etc/tuned/profiles' if mongod_tuned_profiles_dir.stat.isdir | default(false) else '/etc/tuned' }}/mongodb"
+  block:
+    - name: Detect the recommended tuned base profile
+      ansible.builtin.command: tuned-adm recommend
+      register: mongod_tuned_recommend
+      changed_when: false
+      when: mongod_tuned_base_profile | length == 0
+
+    # tuned >= 2.23 reads user profiles from /etc/tuned/profiles.
+    - name: Find the tuned user profile directory
+      ansible.builtin.stat:
+        path: /etc/tuned/profiles
+      register: mongod_tuned_profiles_dir
+
+    - name: Create the tuned profile directory
+      ansible.builtin.file:
+        path: "{{ mongod_tuned_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Write the mongodb tuned profile
+      ansible.builtin.template:
+        src: tuned.conf.j2
+        dest: "{{ mongod_tuned_dir }}/tuned.conf"
+        mode: "0644"
+      vars:
+        mongod_tuned_include: "{{ mongod_tuned_base_profile or mongod_tuned_recommend.stdout | trim }}"
+      register: mongod_tuned_profile
+
+    - name: Check the active tuned profile
+      ansible.builtin.command: tuned-adm active
+      register: mongod_tuned_active
+      changed_when: false
+      failed_when: false
+
+    - name: Activate the mongodb tuned profile
+      ansible.builtin.command: tuned-adm profile mongodb
+      when: >-
+        mongod_tuned_profile is changed or
+        mongod_tuned_active.stdout is not search(': mongodb$', multiline=True)
+      changed_when: true
+      notify: Reapply THP settings

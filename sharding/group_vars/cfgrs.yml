@@ -1,0 +1,4 @@
+---
+mongod_replset_name: cfgrs
+mongod_cluster_role: configsvr
+mongod_port: 27019

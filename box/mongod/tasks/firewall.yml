@@ -1,0 +1,25 @@
+---
+# Override firewalld's bundled mongodb service so it uses mongod_port.
+- name: Write the mongodb firewalld service
+  ansible.builtin.template:
+    src: firewalld-mongodb.xml.j2
+    dest: "{{ mongod_firewalld_service_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: mongod_firewalld_service
+
+# The running firewalld keeps the old definition until reloaded, and it must
+# know the new one before the service is enabled below, so no handler.
+- name: Reload firewalld to read the mongodb service
+  ansible.builtin.command: firewall-cmd --reload
+  changed_when: true
+  when: mongod_firewalld_service is changed  # noqa: no-handler
+
+- name: Allow the mongodb service
+  ansible.posix.firewalld:
+    service: mongodb
+    zone: "{{ mongod_firewall_zone }}"
+    permanent: true
+    immediate: true
+    state: enabled

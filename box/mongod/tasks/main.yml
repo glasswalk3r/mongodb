@@ -1,0 +1,26 @@
+---
+- name: Preflight checks
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Install MongoDB
+  ansible.builtin.import_tasks: install.yml
+
+- name: SELinux policy
+  ansible.builtin.import_tasks: selinux.yml
+  when: mongod_selinux_policy
+
+- name: Transparent Huge Pages
+  ansible.builtin.import_tasks: thp.yml
+
+- name: Kernel and storage tuning
+  ansible.builtin.import_tasks: system.yml
+
+- name: Firewall
+  ansible.builtin.import_tasks: firewall.yml
+  when: mongod_firewall
+
+- name: Configure the mongod service
+  ansible.builtin.import_tasks: service.yml
+
+- name: Verify settings
+  ansible.builtin.import_tasks: verify.yml

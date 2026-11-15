@@ -1,0 +1,6 @@
+---
+- name: Three-member replica set
+  hosts: rs0
+  become: true
+  roles:
+    - mongod

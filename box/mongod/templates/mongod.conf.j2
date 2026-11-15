@@ -1,0 +1,38 @@
+# {{ ansible_managed }}
+systemLog:
+  destination: file
+  logAppend: true
+  path: {{ mongod_log_path }}
+
+storage:
+  dbPath: {{ mongod_db_path }}
+{% if mongod_cache_size_gb | float > 0 %}
+  wiredTiger:
+    engineConfig:
+      cacheSizeGB: {{ mongod_cache_size_gb }}
+{% endif %}
+
+processManagement:
+  timeZoneInfo: /usr/share/zoneinfo
+
+net:
+  port: {{ mongod_port }}
+  bindIp: {{ mongod_bind_ip }}
+{% if mongod_replset_name | length > 0 %}
+
+replication:
+  replSetName: {{ mongod_replset_name }}
+{% if mongod_oplog_size_mb | int > 0 %}
+  oplogSizeMB: {{ mongod_oplog_size_mb }}
+{% endif %}
+{% endif %}
+{% if mongod_cluster_role | length > 0 %}
+
+sharding:
+  clusterRole: {{ mongod_cluster_role }}
+{% endif %}
+{% if mongod_ftdc_dir_size_mb | int > 0 %}
+
+setParameter:
+  diagnosticDataCollectionDirectorySizeMB: {{ mongod_ftdc_dir_size_mb }}
+{% endif %}

@@ -1,0 +1,17 @@
+# {{ ansible_managed }}
+[Unit]
+Wants=mongod-thp.service chronyd.service
+After=mongod-thp.service chronyd.service
+
+[Service]
+LimitNOFILE={{ mongod_limit_nofile }}
+LimitNPROC={{ mongod_limit_nproc }}
+LimitFSIZE=infinity
+LimitCPU=infinity
+LimitAS=infinity
+LimitMEMLOCK=infinity
+TasksMax=infinity
+TasksAccounting=false
+{% if mongod_glibc_rseq_disable %}
+Environment=GLIBC_TUNABLES=glibc.pthread.rseq=0
+{% endif %}

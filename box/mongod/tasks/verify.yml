@@ -1,0 +1,47 @@
+---
+- name: Read THP settings
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  loop:
+    - "{{ mongod_thp_sysfs }}/enabled"
+    - "{{ mongod_thp_sysfs }}/defrag"
+    - "{{ mongod_thp_sysfs }}/khugepaged/max_ptes_none"
+  register: mongod_thp_state
+
+- name: Check THP settings
+  vars:
+    _values: "{{ mongod_thp_state.results | map(attribute='content') | map('b64decode') | map('trim') | list }}"
+  ansible.builtin.assert:
+    that:
+      - ('[' ~ mongod_thp_enabled ~ ']') in _values[0]
+      - ('[' ~ mongod_thp_defrag ~ ']') in _values[1]
+      - _values[2] | int == mongod_thp_max_ptes_none | int
+    fail_msg: "Unexpected THP settings: {{ _values }}"
+    quiet: true
+
+- name: Check the mongod SELinux domain
+  ansible.builtin.command: ps -C mongod -o label=
+  register: mongod_label
+  changed_when: false
+  failed_when: mongod_label.stdout is not search(':mongod_t:')
+  when: mongod_selinux_policy and ansible_facts.selinux.status == 'enabled'
+
+- name: Read TCMalloc status
+  ansible.builtin.command: >-
+    mongosh --quiet --port {{ mongod_port }} --eval
+    'const t = db.serverStatus({tcmalloc: 1}).tcmalloc;
+    print(JSON.stringify({perCpu: t.usingPerCPUCaches, cpuFree: t.tcmalloc?.cpu_free ?? 0}))'
+  register: mongod_tcmalloc
+  changed_when: false
+  when: mongod_version is version('8.0', '>=')
+
+- name: Check TCMalloc per-CPU caches are in use
+  vars:
+    _tcmalloc: "{{ mongod_tcmalloc.stdout | from_json }}"
+  ansible.builtin.assert:
+    that:
+      - _tcmalloc.perCpu | bool
+      - _tcmalloc.cpuFree | int > 0
+    fail_msg: "TCMalloc per-CPU caches are not active: {{ _tcmalloc }}"
+    quiet: true
+  when: mongod_version is version('8.0', '>=')

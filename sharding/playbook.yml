@@ -1,0 +1,161 @@
+---
+- name: Config server and shard replica sets
+  hosts: cfgrs:shards
+  become: true
+  roles:
+    - mongod
+
+- name: Query router
+  hosts: mongos
+  become: true
+  vars:
+    mongos_port: 27017
+    mongos_bind_ip: "127.0.0.1,{{ node_ip }}"
+    mongos_firewall_zone: public
+    # Replica set name -> "name/host:port,..." for configDB and addShard.
+    # Built from node_ip and mongod_port: another host's
+    # mongod_replset_members can't be read through hostvars, since it uses
+    # hostvars itself.
+    mongos_replsets: >-
+      {%- set sets = {} -%}
+      {%- for host in groups['cfgrs'] + groups['shards'] -%}
+      {%- set v = hostvars[host] -%}
+      {%- set _ = sets.setdefault(v.mongod_replset_name, []).append(v.node_ip ~ ':' ~ v.mongod_port) -%}
+      {%- endfor -%}
+      {%- set out = {} -%}
+      {%- for name, hosts in sets.items() -%}
+      {%- set _ = out.update({name: name ~ '/' ~ hosts | join(',')}) -%}
+      {%- endfor -%}
+      {{ out }}
+    mongos_shards: "{{ groups['shards'] | map('extract', hostvars, 'mongod_replset_name') | unique | list }}"
+  handlers:
+    - name: Restart mongos
+      ansible.builtin.systemd_service:
+        name: mongos
+        state: restarted
+        daemon_reload: true
+  tasks:
+    - name: Write mongos.conf
+      ansible.builtin.copy:
+        dest: /etc/mongos.conf
+        mode: "0644"
+        content: |
+          # {{ ansible_managed }}
+          systemLog:
+            destination: file
+            logAppend: true
+            path: /var/log/mongodb/mongos.log
+
+          processManagement:
+            timeZoneInfo: /usr/share/zoneinfo
+
+          net:
+            port: {{ mongos_port }}
+            bindIp: {{ mongos_bind_ip }}
+
+          sharding:
+            configDB: {{ mongos_replsets[hostvars[groups['cfgrs'][0]].mongod_replset_name] }}
+      notify: Restart mongos
+
+    # mongodb-org installs the mongos binary but no service. The SELinux
+    # policy doesn't cover mongos, so it runs unconfined.
+    - name: Write the mongos service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/mongos.service
+        mode: "0644"
+        content: |
+          # {{ ansible_managed }}
+          [Unit]
+          Description=MongoDB query router
+          Wants=network-online.target
+          After=network-online.target mongod.service
+
+          [Service]
+          User=mongod
+          Group=mongod
+          ExecStart=/usr/bin/mongos --config /etc/mongos.conf
+          LimitNOFILE=64000
+          LimitNPROC=64000
+          Environment=GLIBC_TUNABLES=glibc.pthread.rseq=0
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: Restart mongos
+
+    # firewalld ships no mongos service; /etc/firewalld/services is the place
+    # for local ones, like the role's mongodb override.
+    - name: Write the mongos firewalld service
+      ansible.builtin.copy:
+        dest: /etc/firewalld/services/mongos.xml
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          <?xml version="1.0" encoding="utf-8"?>
+          <!-- {{ ansible_managed }} -->
+          <service>
+            <short>mongos</short>
+            <description>MongoDB query router for a sharded cluster.</description>
+            <port protocol="tcp" port="{{ mongos_port }}"/>
+          </service>
+      register: mongos_firewalld_service
+
+    # The running firewalld must read the new definition before the service
+    # can be enabled below, so no handler.
+    - name: Reload firewalld to read the mongos service
+      ansible.builtin.command: firewall-cmd --reload
+      changed_when: true
+      when: mongos_firewalld_service is changed  # noqa: no-handler
+
+    - name: Allow the mongos service
+      ansible.posix.firewalld:
+        service: mongos
+        zone: "{{ mongos_firewall_zone }}"
+        permanent: true
+        immediate: true
+        state: enabled
+
+    # Earlier versions of the playbook opened the port directly.
+    - name: Remove the plain mongos port rule
+      ansible.posix.firewalld:
+        port: "{{ mongos_port }}/tcp"
+        zone: "{{ mongos_firewall_zone }}"
+        permanent: true
+        immediate: true
+        state: disabled
+
+    - name: Apply pending configuration changes
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable and start mongos
+      ansible.builtin.systemd_service:
+        name: mongos
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for mongos to accept connections
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ mongos_port }}"
+        timeout: 60
+
+    - name: Add the shards
+      ansible.builtin.command:
+        argv:
+          - mongosh
+          - --quiet
+          - --port
+          - "{{ mongos_port }}"
+          - --eval
+          - |
+            const id = {{ item | to_json }};
+            if (db.adminCommand({listShards: 1}).shards.some((s) => s._id === id)) {
+              print('present');
+            } else {
+              sh.addShard({{ mongos_replsets[item] | to_json }});
+              print('added');
+            }
+      loop: "{{ mongos_shards }}"
+      register: mongos_add_shard
+      changed_when: mongos_add_shard.stdout == 'added'

@@ -1,0 +1,16 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Transparent Huge Pages settings for mongod
+DefaultDependencies=no
+After=sysinit.target local-fs.target tuned.service
+Before=mongod.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'echo {{ mongod_thp_enabled }} > {{ mongod_thp_sysfs }}/enabled'
+ExecStart=/bin/sh -c 'echo {{ mongod_thp_defrag }} > {{ mongod_thp_sysfs }}/defrag'
+ExecStart=/bin/sh -c 'echo {{ mongod_thp_max_ptes_none }} > {{ mongod_thp_sysfs }}/khugepaged/max_ptes_none'
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,33 @@
+---
+- name: Add the MongoDB repository
+  ansible.builtin.yum_repository:
+    name: "mongodb-org-{{ mongod_version }}"
+    description: MongoDB Repository
+    baseurl: "https://repo.mongodb.org/yum/redhat/{{ ansible_facts.distribution_major_version }}/mongodb-org/{{ mongod_version }}/x86_64/"
+    gpgcheck: true
+    gpgkey: "https://pgp.mongodb.com/server-{{ mongod_version }}.asc"
+    enabled: true
+
+- name: Install MongoDB packages
+  ansible.builtin.dnf:
+    name: "{{ mongod_packages }}"
+    state: present
+  register: mongod_install
+  until: mongod_install is succeeded
+  retries: 5
+  delay: 10
+
+- name: Install chrony for time synchronization
+  ansible.builtin.dnf:
+    name: chrony
+    state: present
+  register: mongod_chrony_install
+  until: mongod_chrony_install is succeeded
+  retries: 5
+  delay: 10
+
+- name: Enable chronyd
+  ansible.builtin.systemd_service:
+    name: chronyd
+    enabled: true
+    state: started

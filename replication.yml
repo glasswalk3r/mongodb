@@ -1,0 +1,33 @@
+---
+# rs.initiate() checks that every member is reachable; the linear strategy
+# has already started mongod on all hosts of the play by now.
+- name: Initiate the replica set
+  ansible.builtin.command:
+    argv:
+      - mongosh
+      - --quiet
+      - --port
+      - "{{ mongod_port }}"
+      - --eval
+      - |
+        const config = {
+          _id: {{ mongod_replset_name | to_json }},
+          members: {{ mongod_replset_members | to_json }}.map((host, i) => ({_id: i, host})),
+        };
+        if ({{ (mongod_cluster_role == 'configsvr') | to_json }}) config.configsvr = true;
+        let initiated = false;
+        try {
+          rs.status();
+        } catch (e) {
+          if (e.codeName !== 'NotYetInitialized') throw e;
+          rs.initiate(config);
+          initiated = true;
+        }
+        const deadline = Date.now() + 120000;
+        while (!db.hello().primary) {
+          if (Date.now() > deadline) throw new Error('No primary elected after 120 s');
+          sleep(1000);
+        }
+        print(initiated ? 'initiated' : 'present');
+  register: mongod_replset_init
+  changed_when: mongod_replset_init.stdout == 'initiated'

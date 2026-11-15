@@ -1,0 +1,21 @@
+---
+# Paths and ports covered by the MongoDB SELinux policy.
+mongod_selinux_default_db_path: /var/lib/mongo
+mongod_selinux_default_log_path: /var/log/mongodb/mongod.log
+mongod_selinux_ports: [27017, 27018, 27019]
+
+# Kernels with a TCMalloc incompatibility; mongod refuses to start on them.
+mongod_bad_kernel_min: "6.19"
+mongod_bad_kernel_max: "7.0.13"
+
+mongod_selinux_build_packages:
+  - git
+  - make
+  - checkpolicy
+  - policycoreutils
+  - policycoreutils-python-utils
+  - selinux-policy-devel
+
+# Overrides firewalld's bundled mongodb service (same name, /usr/lib) with
+# mongod_port; package updates leave /etc alone.
+mongod_firewalld_service_file: /etc/firewalld/services/mongodb.xml
