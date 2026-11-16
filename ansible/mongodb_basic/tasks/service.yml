@@ -1,13 +1,4 @@
 ---
-- name: Write mongod.conf
-  ansible.builtin.template:
-    src: mongod.conf.j2
-    dest: /etc/mongod.conf
-    owner: root
-    group: root
-    mode: "0644"
-  notify: Restart mongod
-
 - name: Create the mongod service drop-in directory
   ansible.builtin.file:
     path: /etc/systemd/system/mongod.service.d
@@ -21,19 +12,6 @@
     mode: "0644"
   notify:
     - Reload systemd
-    - Restart mongod
 
 - name: Apply pending configuration changes
   ansible.builtin.meta: flush_handlers
-
-- name: Enable and start mongod
-  ansible.builtin.systemd_service:
-    name: mongod
-    enabled: "{{ mongod_service_enabled }}"
-    state: started
-
-- name: Wait for mongod to accept connections
-  ansible.builtin.wait_for:
-    host: "{{ '127.0.0.1' if mongod_bind_ip in ['0.0.0.0', '::'] else mongod_bind_ip.split(',')[0] | trim }}"
-    port: "{{ mongod_port }}"
-    timeout: 60

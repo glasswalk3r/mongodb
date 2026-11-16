@@ -1,19 +1,19 @@
 ---
 - name: Add the MongoDB repository
   ansible.builtin.yum_repository:
-    name: "mongodb-org-{{ mongod_version }}"
+    name: "mongodb-org-{{ version }}"
     description: MongoDB Repository
-    baseurl: "https://repo.mongodb.org/yum/redhat/{{ ansible_facts.distribution_major_version }}/mongodb-org/{{ mongod_version }}/x86_64/"
+    baseurl: "https://repo.mongodb.org/yum/redhat/{{ ansible_facts.distribution_major_version }}/mongodb-org/{{ version }}/x86_64/"
     gpgcheck: true
-    gpgkey: "https://pgp.mongodb.com/server-{{ mongod_version }}.asc"
+    gpgkey: "https://pgp.mongodb.com/server-{{ version }}.asc"
     enabled: true
 
 - name: Install MongoDB packages
   ansible.builtin.dnf:
-    name: "{{ mongod_packages }}"
+    name: "{{ packages }}"
     state: present
-  register: mongod_install
-  until: mongod_install is succeeded
+  register: install
+  until: install is succeeded
   retries: 5
   delay: 10
 
@@ -21,8 +21,8 @@
   ansible.builtin.dnf:
     name: chrony
     state: present
-  register: mongod_chrony_install
-  until: mongod_chrony_install is succeeded
+  register: chrony_install
+  until: chrony_install is succeeded
   retries: 5
   delay: 10
 

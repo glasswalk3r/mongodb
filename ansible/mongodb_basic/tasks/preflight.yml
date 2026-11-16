@@ -11,29 +11,29 @@
     _kernel: "{{ ansible_facts.kernel.split('-')[0] }}"
   ansible.builtin.assert:
     that: >-
-      _kernel is version(mongod_bad_kernel_min, '<') or
-      _kernel is version(mongod_bad_kernel_max, '>')
+      _kernel is version(bad_kernel_min, '<') or
+      _kernel is version(bad_kernel_max, '>')
     fail_msg: >-
-      mongod refuses to start on kernels {{ mongod_bad_kernel_min }} through
-      {{ mongod_bad_kernel_max }}; running {{ ansible_facts.kernel }}.
+      mongod refuses to start on kernels {{ bad_kernel_min }} through
+      {{ bad_kernel_max }}; running {{ ansible_facts.kernel }}.
 
 - name: Check replication and sharding settings
   ansible.builtin.assert:
     that:
-      - mongod_cluster_role in ['', 'configsvr', 'shardsvr']
-      - mongod_cluster_role | length == 0 or mongod_replset_name | length > 0
+      - cluster_role in ['', 'configsvr', 'shardsvr']
+      - cluster_role | length == 0 or replset_name | length > 0
     fail_msg: >-
-      mongod_cluster_role must be configsvr, shardsvr or empty, and a cluster
-      member needs mongod_replset_name.
+      cluster_role must be configsvr, shardsvr or empty, and a cluster
+      member needs replset_name.
 
 - name: Check settings are compatible with the MongoDB SELinux policy
   ansible.builtin.assert:
     that:
-      - mongod_db_path == mongod_selinux_default_db_path
-      - mongod_log_path == mongod_selinux_default_log_path
-      - mongod_port | int in mongod_selinux_ports
+      - db_path == selinux_default_db_path
+      - log_path == selinux_default_log_path
+      - port | int in selinux_ports
     fail_msg: >-
       The MongoDB SELinux policy only supports the default dbPath, log path
-      and ports. Use the defaults or set mongod_selinux_policy to false and
+      and ports. Use the defaults or set selinux_policy to false and
       provide a custom policy.
-  when: mongod_selinux_policy
+  when: selinux_policy

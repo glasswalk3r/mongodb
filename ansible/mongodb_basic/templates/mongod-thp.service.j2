@@ -8,9 +8,9 @@ Before=mongod.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/sh -c 'echo {{ mongod_thp_enabled }} > {{ mongod_thp_sysfs }}/enabled'
-ExecStart=/bin/sh -c 'echo {{ mongod_thp_defrag }} > {{ mongod_thp_sysfs }}/defrag'
-ExecStart=/bin/sh -c 'echo {{ mongod_thp_max_ptes_none }} > {{ mongod_thp_sysfs }}/khugepaged/max_ptes_none'
+ExecStart=/bin/sh -c 'echo {{ thp_enabled }} > {{ thp_sysfs }}/enabled'
+ExecStart=/bin/sh -c 'echo {{ thp_defrag }} > {{ thp_sysfs }}/defrag'
+ExecStart=/bin/sh -c 'echo {{ thp_max_ptes_none }} > {{ thp_sysfs }}/khugepaged/max_ptes_none'
 
 [Install]
 WantedBy=multi-user.target

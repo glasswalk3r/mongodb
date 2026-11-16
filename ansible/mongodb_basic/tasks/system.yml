@@ -16,7 +16,7 @@
 - name: Add noatime to the data file system
   ansible.builtin.replace:
     path: /etc/fstab
-    regexp: '^(\S+\s+{{ mongod_data_mount | regex_escape }}\s+\S+\s+)(?!(?:\S*,)?noatime(?:,|\s))(\S+)(\s.*)$'
+    regexp: '^(\S+\s+{{ data_mount | regex_escape }}\s+\S+\s+)(?!(?:\S*,)?noatime(?:,|\s))(\S+)(\s.*)$'
     replace: '\1\2,noatime\3'
-  when: mongod_noatime
+  when: noatime
   notify: Remount data file system

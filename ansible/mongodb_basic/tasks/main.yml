@@ -7,7 +7,7 @@
 
 - name: SELinux policy
   ansible.builtin.import_tasks: selinux.yml
-  when: mongod_selinux_policy
+  when: selinux_policy
 
 - name: Transparent Huge Pages
   ansible.builtin.import_tasks: thp.yml
@@ -17,7 +17,7 @@
 
 - name: Firewall
   ansible.builtin.import_tasks: firewall.yml
-  when: mongod_firewall
+  when: firewall
 
 - name: Configure the mongod service
   ansible.builtin.import_tasks: service.yml

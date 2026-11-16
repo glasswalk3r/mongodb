@@ -20,7 +20,7 @@
 
 # Plain remount re-reads the options from /etc/fstab; avoids an ansible.posix dependency.
 - name: Remount data file system
-  ansible.builtin.command: "mount -o remount {{ mongod_data_mount }}"  # noqa: command-instead-of-module
+  ansible.builtin.command: "mount -o remount {{ data_mount }}"  # noqa: command-instead-of-module
   changed_when: true
 
 - name: Restart mongod

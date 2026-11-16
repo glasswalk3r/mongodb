@@ -1,19 +1,19 @@
 ---
 - name: Install SELinux policy build dependencies
   ansible.builtin.dnf:
-    name: "{{ mongod_selinux_build_packages }}"
+    name: "{{ selinux_build_packages }}"
     state: present
 
 - name: Fetch the MongoDB SELinux policy source
   ansible.builtin.git:
-    repo: "{{ mongod_selinux_repo }}"
-    dest: "{{ mongod_selinux_src_dir }}"
-    version: "{{ mongod_selinux_version }}"
-  register: mongod_selinux_src
+    repo: "{{ selinux_repo }}"
+    dest: "{{ selinux_src_dir }}"
+    version: "{{ selinux_version }}"
+  register: selinux_src
 
 - name: Check installed SELinux modules
   ansible.builtin.command: semodule --list-modules=full
-  register: mongod_semodules
+  register: semodules
   changed_when: false
 
 # The upstream module is installed at priority 200, overriding the older
@@ -25,9 +25,9 @@
     make
     make install
   args:
-    chdir: "{{ mongod_selinux_src_dir }}"
+    chdir: "{{ selinux_src_dir }}"
   when: >-
-    mongod_selinux_src is changed or
-    mongod_semodules.stdout is not search('^200\s+mongodb\s', multiline=True)
+    selinux_src is changed or
+    semodules.stdout is not search('^200\s+mongodb\s', multiline=True)
   changed_when: true
   notify: Restart mongod

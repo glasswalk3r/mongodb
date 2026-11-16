@@ -1,10 +1,10 @@
 # {{ ansible_managed }}
 [main]
-summary=MongoDB on top of {{ mongod_tuned_include }}
-include={{ mongod_tuned_include }}
+summary=MongoDB on top of {{ tuned_include }}
+include={{ tuned_include }}
 
 [vm]
-transparent_hugepages={{ mongod_thp_enabled }}
+transparent_hugepages={{ thp_enabled }}
 
 [sysctl]
-vm.swappiness={{ mongod_sysctl['vm.swappiness'] }}
+vm.swappiness={{ sysctl['vm.swappiness'] }}

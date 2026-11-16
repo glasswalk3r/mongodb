@@ -1,65 +1,53 @@
 ---
 # MongoDB release series (selects the yum repository).
-mongod_version: "8.0"
-mongod_packages:
+version: "8.0"
+packages:
   - mongodb-org
 
 # mongod.conf. The MongoDB SELinux policy only supports the RPM defaults for
 # port, dbPath, systemLog.path and pidFilePath; the role refuses to run with
-# other values while mongod_selinux_policy is true.
-mongod_port: 27017
-mongod_bind_ip: 127.0.0.1
-mongod_db_path: /var/lib/mongo
-mongod_log_path: /var/log/mongodb/mongod.log
+# other values while selinux_policy is true.
+port: 27017
+bind_ip: 127.0.0.1
+db_path: /var/lib/mongo
+log_path: /var/log/mongodb/mongod.log
 
 # WiredTiger cache and FTDC (diagnostic.data) size limits; 0 keeps the MongoDB
 # default. Small values suit test VMs with little RAM and disk.
-mongod_cache_size_gb: 0
-mongod_ftdc_dir_size_mb: 0
+cache_size_gb: 0
+ftdc_dir_size_mb: 0
 
-# Replication. An empty name runs a standalone mongod.
-mongod_replset_name: ""
-mongod_oplog_size_mb: 0
-# host:port of every member, passed to rs.initiate(). Set
-# mongod_replset_initiate on exactly one member; the role initiates the set
-# from there once mongod runs on all hosts of the play.
-mongod_replset_members: []
-mongod_replset_initiate: false
-
-# Sharding role: "configsvr", "shardsvr" or "" (not part of a sharded cluster).
-mongod_cluster_role: ""
-
-# Allow the firewalld mongodb service, rewritten to use mongod_port; needed
-# when mongod_bind_ip includes a non-loopback address.
-mongod_firewall: false
+# Allow the firewalld mongodb service, rewritten to use port; needed
+# when bind_ip includes a non-loopback address.
+firewall: false
 # firewalld zone to open it in. Rocky's default zone is "public"; use
 # "internal" (bound to a trusted source subnet) to restrict access.
-mongod_firewall_zone: public
+firewall_zone: public
 
 # Official SELinux policy (https://github.com/mongodb/mongodb-selinux).
-mongod_selinux_policy: true
-mongod_selinux_repo: https://github.com/mongodb/mongodb-selinux
+selinux_policy: true
+selinux_repo: https://github.com/mongodb/mongodb-selinux
 # Pinned commit; bump deliberately after reviewing upstream changes.
-mongod_selinux_version: 18181652362a46fd4511a56f20c4055712deb252
-mongod_selinux_src_dir: /usr/local/src/mongodb-selinux
+selinux_version: 18181652362a46fd4511a56f20c4055712deb252
+selinux_src_dir: /usr/local/src/mongodb-selinux
 
 # Transparent Huge Pages. MongoDB 8.0+ (new TCMalloc) wants THP enabled;
 # 7.0 and earlier want it disabled.
-mongod_thp_enabled: "{{ 'always' if mongod_version is version('8.0', '>=') else 'never' }}"
-mongod_thp_defrag: "{{ 'defer+madvise' if mongod_version is version('8.0', '>=') else 'never' }}"
-mongod_thp_max_ptes_none: 0
-mongod_thp_sysfs: /sys/kernel/mm/transparent_hugepage
+thp_enabled: "{{ 'always' if version is version('8.0', '>=') else 'never' }}"
+thp_defrag: "{{ 'defer+madvise' if version is version('8.0', '>=') else 'never' }}"
+thp_max_ptes_none: 0
+thp_sysfs: /sys/kernel/mm/transparent_hugepage
 
 # tuned: when installed, a "mongodb" profile is layered on top of this base
 # profile. Empty means use `tuned-adm recommend` (virtual-guest on a VM).
-mongod_tuned_base_profile: ""
+tuned_base_profile: ""
 
 # Disable glibc rseq registration so TCMalloc can use per-CPU caches
 # (needed with the glibc shipped by EL9+).
-mongod_glibc_rseq_disable: true
+glibc_rseq_disable: true
 
 # Kernel settings (production notes).
-mongod_sysctl:
+sysctl:
   vm.swappiness: 1
   vm.overcommit_memory: 1
   vm.zone_reclaim_mode: 0
@@ -67,16 +55,16 @@ mongod_sysctl:
 
 # Block devices: readahead 8-32 sectors (4-16 KiB) and the "none" I/O
 # scheduler for hypervisor-backed disks.
-mongod_readahead_kb: 16
-mongod_io_scheduler: none
-mongod_block_devices: "sd[a-z]|vd[a-z]|nvme[0-9]*n[0-9]*"
+readahead_kb: 16
+io_scheduler: none
+block_devices: "sd[a-z]|vd[a-z]|nvme[0-9]*n[0-9]*"
 
 # Add noatime to the fstab entry of the file system that holds dbPath.
-mongod_noatime: true
-mongod_data_mount: /
+noatime: true
+data_mount: /
 
 # Resource limits for the mongod service (ulimit reference).
-mongod_limit_nofile: 64000
-mongod_limit_nproc: 64000
+limit_nofile: 64000
+limit_nproc: 64000
 
-mongod_service_enabled: true
+service_enabled: true

@@ -1,5 +1,5 @@
 # {{ ansible_managed }}
-{% for key, value in mongod_sysctl.items() %}
+{% for key, value in sysctl.items() %}
 {{ key }} = {{ value }}
 {% endfor %}
 # RHEL kernels: let vm.swappiness override cgroup v2 defaults (ignored if absent).
