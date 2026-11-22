@@ -1,6 +1,27 @@
 ---
-- name: Three-member replica set
-  hosts: rs0
+- name: Three-member MongoDB replica set
+  hosts: all
   become: true
+  vars:
+    # Brasília time (UTC-3, no daylight saving time since 2019).
+    timezone: America/Sao_Paulo
+  pre_tasks:
+    # timedatectl instead of community.general.timezone: the roles only use
+    # ansible.builtin (plus ansible.posix).
+    - name: Read the current timezone
+      ansible.builtin.command: timedatectl show --property=Timezone --value
+      register: current_timezone
+      changed_when: false
+      check_mode: false
+
+    # mongod logs in local time (iso8601-local) and only picks up the new
+    # timezone after a restart. "Restart mongod" is try-restart, so it does
+    # nothing on a first run, before the role starts mongod.
+    - name: Set the timezone
+      ansible.builtin.command: timedatectl set-timezone {{ timezone }}
+      when: current_timezone.stdout != timezone
+      changed_when: true
+      notify: Restart mongod
   roles:
-    - mongod
+    # Runs mongodb_basic first, as a dependency (see its meta/main.yml).
+    - mongodb_replica_set

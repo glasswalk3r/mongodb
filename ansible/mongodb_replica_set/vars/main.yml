@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-only
+---
+# vars file for mongodb-replica-set
+mongod_keyfile_path: /etc/mongodb/pki
+mongod_keyfile_name: keyfile

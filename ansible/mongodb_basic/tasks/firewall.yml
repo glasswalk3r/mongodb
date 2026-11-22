@@ -1,5 +1,5 @@
 ---
-# Override firewalld's bundled mongodb service so it uses port.
+# Override firewalld's bundled mongodb service so it uses mongod_port.
 - name: Write the mongodb firewalld service
   ansible.builtin.template:
     src: firewalld-mongodb.xml.j2

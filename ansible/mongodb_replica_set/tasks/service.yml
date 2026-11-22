@@ -1,0 +1,61 @@
+---
+- name: Write mongod.conf
+  ansible.builtin.template:
+    src: mongod.conf.j2
+    dest: /etc/mongod.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart mongod
+
+- name: Create the directories to keep the replica set authentication key
+  ansible.builtin.file:
+    path: '{{ mongod_keyfile_path }}'
+    state: directory
+    mode: "0755"
+    owner: mongod
+
+- name: Generate keyfile locally on control node if it doesn't exist
+  ansible.builtin.command:
+    cmd: openssl rand -base64 756
+  register: local_key
+  delegate_to: localhost
+  run_once: true
+  become: false
+  args:
+    creates: '{{ playbook_dir }}/{{ mongod_keyfile_name }}'
+
+- name: Save keyfile locally
+  ansible.builtin.copy:
+    content: "{{ local_key.stdout }}\n"
+    dest: '{{ playbook_dir }}/{{ mongod_keyfile_name }}'
+    mode: '0600'
+  delegate_to: localhost
+  become: false
+  run_once: true
+  no_log: true
+  when: local_key.changed  # noqa: no-handler
+
+- name: Distribute keyfile to all MongoDB nodes
+  ansible.builtin.copy:
+    src: '{{ playbook_dir }}/{{ mongod_keyfile_name }}'
+    dest: '{{ mongod_keyfile_path }}/{{ mongod_keyfile_name }}'
+    owner: mongod
+    group: mongod
+    mode: '0400'
+  notify: Restart mongod
+
+- name: Enable and start mongod
+  ansible.builtin.systemd_service:
+    name: mongod
+    enabled: '{{ service_enabled }}'
+    state: started
+
+- name: Apply pending configuration changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for mongod to accept connections
+  ansible.builtin.wait_for:
+    host: "{{ '127.0.0.1' if bind_ip in ['0.0.0.0', '::'] else bind_ip.split(',')[0] | trim }}"
+    port: "{{ mongod_port }}"
+    timeout: 60

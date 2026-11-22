@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-only
+---
+- name: Test mongodb_replica_set
+  hosts: localhost
+  remote_user: root
+  roles:
+    - mongodb_replica_set

@@ -1,0 +1,38 @@
+# {{ ansible_managed }}
+systemLog:
+  destination: file
+  logAppend: true
+  path: {{ log_path }}
+
+storage:
+  dbPath: {{ db_path }}
+{% if cache_size_gb | float > 0 %}
+  wiredTiger:
+    engineConfig:
+      cacheSizeGB: {{ cache_size_gb }}
+{% endif %}
+
+processManagement:
+  timeZoneInfo: /usr/share/zoneinfo
+
+net:
+  port: {{ mongod_port }}
+  bindIp: {{ bind_ip }}
+{% if replica_set_name | length > 0 %}
+
+security:
+  keyFile: {{ mongod_keyfile_path }}/{{ mongod_keyfile_name }}
+  authorization: enabled
+
+replication:
+  replSetName: {{ replica_set_name }}
+{% if oplog_size_mb | int > 0 %}
+  oplogSizeMB: {{ oplog_size_mb }}
+{% endif %}
+{% endif %}
+
+{% if ftdc_dir_size_mb | int > 0 %}
+
+setParameter:
+  diagnosticDataCollectionDirectorySizeMB: {{ ftdc_dir_size_mb }}
+{% endif %}

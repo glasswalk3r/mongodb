@@ -23,7 +23,8 @@
   ansible.builtin.command: "mount -o remount {{ data_mount }}"  # noqa: command-instead-of-module
   changed_when: true
 
+# try-restart only restarts a running mongod. A first run never starts it with
+# the RPM's default mongod.conf; the role that writes mongod.conf starts it.
 - name: Restart mongod
-  ansible.builtin.systemd_service:
-    name: mongod
-    state: restarted
+  ansible.builtin.command: systemctl try-restart mongod  # noqa: command-instead-of-module
+  changed_when: true

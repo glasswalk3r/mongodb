@@ -12,6 +12,7 @@
     mode: "0644"
   notify:
     - Reload systemd
+    - Restart mongod
 
 - name: Apply pending configuration changes
   ansible.builtin.meta: flush_handlers

@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-only
+---
+# defaults file for mongodb-replica-set
+
+# mongod_port, db_path and log_path come from mongodb_basic (a dependency in
+# meta/main.yml), which also checks them against the SELinux policy.
+bind_ip: 127.0.0.1
+
+# WiredTiger cache and FTDC (diagnostic.data) size limits; 0 keeps the MongoDB
+# default. Small values suit test VMs with little RAM and disk.
+cache_size_gb: 0
+ftdc_dir_size_mb: 0
+
+# Replication. An empty name runs a standalone mongod.
+replica_set_name: ""
+oplog_size_mb: 0
+# FQDN:port of every member, only to generate the rs.initiate() command and
+# connection string and print them
+replica_set_members: []
+
+service_enabled: true

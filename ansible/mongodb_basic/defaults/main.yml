@@ -4,22 +4,17 @@ version: "8.0"
 packages:
   - mongodb-org
 
-# mongod.conf. The MongoDB SELinux policy only supports the RPM defaults for
-# port, dbPath, systemLog.path and pidFilePath; the role refuses to run with
-# other values while selinux_policy is true.
-port: 27017
-bind_ip: 127.0.0.1
+# mongod port and paths, shared with the roles that write mongod.conf
+# (mongodb_replica_set, mongodb_sharding). The MongoDB SELinux policy only
+# supports the RPM defaults for port, dbPath, systemLog.path and pidFilePath;
+# the role refuses to run with other values while selinux_policy is true.
+mongod_port: 27017
 db_path: /var/lib/mongo
 log_path: /var/log/mongodb/mongod.log
 
-# WiredTiger cache and FTDC (diagnostic.data) size limits; 0 keeps the MongoDB
-# default. Small values suit test VMs with little RAM and disk.
-cache_size_gb: 0
-ftdc_dir_size_mb: 0
-
-# Allow the firewalld mongodb service, rewritten to use port; needed
+# Allow the firewalld mongodb service, rewritten to use mongod_port; needed
 # when bind_ip includes a non-loopback address.
-firewall: false
+enable_firewall: false
 # firewalld zone to open it in. Rocky's default zone is "public"; use
 # "internal" (bound to a trusted source subnet) to restrict access.
 firewall_zone: public
@@ -66,5 +61,3 @@ data_mount: /
 # Resource limits for the mongod service (ulimit reference).
 limit_nofile: 64000
 limit_nproc: 64000
-
-service_enabled: true

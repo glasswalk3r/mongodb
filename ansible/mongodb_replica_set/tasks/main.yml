@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-only
+---
+# tasks file for mongodb-replica-set
+
+- name: Configure the mongod service
+  ansible.builtin.import_tasks: service.yml
+
+- name: Prints the connection string to the replica set
+  ansible.builtin.debug:
+    msg: "mongodb://<user>:<password>@{{ replica_set_members | join(',') }}/?authSource=admin&replicaSet={{ replica_set_name }}"

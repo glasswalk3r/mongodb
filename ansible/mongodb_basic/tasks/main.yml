@@ -17,10 +17,7 @@
 
 - name: Firewall
   ansible.builtin.import_tasks: firewall.yml
-  when: firewall
+  when: enable_firewall
 
 - name: Configure the mongod service
   ansible.builtin.import_tasks: service.yml
-
-- name: Verify settings
-  ansible.builtin.import_tasks: verify.yml
