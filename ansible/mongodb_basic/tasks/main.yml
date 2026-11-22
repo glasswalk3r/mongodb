@@ -9,6 +9,10 @@
   ansible.builtin.import_tasks: selinux.yml
   when: selinux_policy
 
+- name: Data disk
+  ansible.builtin.import_tasks: disk.yml
+  when: data_device | length > 0
+
 - name: Transparent Huge Pages
   ansible.builtin.import_tasks: thp.yml
 

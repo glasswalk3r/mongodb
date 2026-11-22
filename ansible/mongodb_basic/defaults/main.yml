@@ -54,9 +54,18 @@ readahead_kb: 16
 io_scheduler: none
 block_devices: "sd[a-z]|vd[a-z]|nvme[0-9]*n[0-9]*"
 
-# Add noatime to the fstab entry of the file system that holds dbPath.
+# Dedicated disk for dbPath, e.g. /dev/sdb. Empty keeps dbPath on the root
+# file system. The role formats it only when it's blank (no signature at all),
+# labels it data_label, mounts it at db_path by label and fails if db_path
+# already holds files.
+data_device: ""
+data_label: mongodata
+data_fstype: xfs
+
+# noatime for the file system that holds dbPath: added to an existing fstab
+# entry (data_mount), or to the mount options of the data disk.
 noatime: true
-data_mount: /
+data_mount: "{{ db_path if data_device | length > 0 else '/' }}"
 
 # Resource limits for the mongod service (ulimit reference).
 limit_nofile: 64000

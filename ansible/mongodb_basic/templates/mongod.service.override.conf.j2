@@ -2,6 +2,9 @@
 [Unit]
 Wants=mongod-thp.service chronyd.service
 After=mongod-thp.service chronyd.service
+{% if data_device | length > 0 %}
+RequiresMountsFor={{ db_path }}
+{% endif %}
 
 [Service]
 LimitNOFILE={{ limit_nofile }}

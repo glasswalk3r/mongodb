@@ -9,7 +9,7 @@ depends on it does that, such as `mongodb_replica_set`.
 ## Implementation details
 
 Requires `become: true`. Uses `ansible.builtin` modules plus
-`ansible.posix.firewalld` (install the collection with
+`ansible.posix.firewalld` and `ansible.posix.mount` (install the collection with
 `ansible-galaxy collection install -r mongodb_basic/meta/requirements.yml`; it
 ships with the full `ansible` package but not with `ansible-core`).
 
@@ -41,19 +41,33 @@ Use it through a role that lists it in `meta/main.yml` dependencies:
    - Upstream installs the module at priority 200, overriding the older
      `mongodb` module in `selinux-policy-targeted` (priority 100).
    - Rebuilds only when the source changes or the module is missing.
-4. **Transparent Huge Pages**:
+4. **Data disk** (only when `data_device` is set, e.g. `/dev/sdb`):
+   - Fails if `data_device` isn't a block device.
+   - Formats it with `data_fstype` (XFS) and the label `data_label`, but only if
+     no file system with that label exists and the device is blank (`blkid -p`
+     finds no signature). A disk with other data makes the role fail instead.
+   - Fails if `dbPath` isn't a mount point yet but already holds files, which
+     the mount would hide.
+   - Mounts it at `dbPath` by label (so a device rename doesn't matter), with
+     `noatime` when `noatime` is true, and adds it to `/etc/fstab`.
+   - Sets the mount point to `mongod:mongod` `0755` and restores its SELinux
+     label (`mongod_var_lib_t`); files `mongod` creates inherit it.
+   - Runs after the install and the SELinux policy, because it needs the
+     `mongod` user and the `dbPath` file context.
+5. **Transparent Huge Pages**:
    - The `mongod-thp.service` unit sets `enabled=always`,
      `defrag=defer+madvise` and `khugepaged/max_ptes_none=0`.
    - It runs after `tuned.service` and before `mongod.service`.
    - If `tuned` is installed, a `mongodb` tuned profile is layered on the
      recommended base profile (normally `virtual-guest`).
-5. **System tuning**:
+6. **System tuning**:
    - `/etc/sysctl.d/90-mongod.conf`, see the variables below. Also sets
      `vm.force_cgroup_v2_swappiness=1`, which is skipped if the kernel doesn't
      have it.
    - udev rule: readahead 16 KiB (32 sectors) and the `none` I/O scheduler.
-   - `noatime` added to the `/` entry in `/etc/fstab`, then a remount.
-6. **Firewall** (only with `enable_firewall`): overrides firewalld's bundled
+   - `noatime` added to the `data_mount` entry in `/etc/fstab` (`/`, or `dbPath`
+     with a data disk, whose entry already has it), then a remount.
+7. **Firewall** (only with `enable_firewall`): overrides firewalld's bundled
    `mongodb` service with `/etc/firewalld/services/mongodb.xml`, written from a
    template so its port is `mongod_port` (a file in `/etc` takes precedence
    over the one of the same name in `/usr/lib/firewalld/services/`), reloads
@@ -62,16 +76,20 @@ Use it through a role that lists it in `meta/main.yml` dependencies:
    service in the `firewall_zone` zone with `ansible.posix.firewalld`,
    permanently and in the running configuration. Package updates
    don't touch `/etc`, so the override survives firewalld upgrades.
-7. **Service**:
+8. **Service**:
    - systemd override:
      - limits: `LimitNOFILE`/`LimitNPROC` 64000, plus the other limits MongoDB
        recommends;
      - `GLIBC_TUNABLES=glibc.pthread.rseq=0`, so TCMalloc can use per-CPU caches
        with EL10's glibc;
-     - ordering after `mongod-thp` and `chronyd`.
+     - ordering after `mongod-thp` and `chronyd`;
+     - with a data disk, `RequiresMountsFor=` `dbPath`, so `mongod` never starts
+       on the empty directory of the root file system.
    - Reloads systemd when the override changes. The `Restart mongod` handler
      uses `systemctl try-restart`, so it only restarts a `mongod` that is
-     already running and never starts one with the RPM's default config.
+     already running and never starts one with the RPM's default config. It
+     ignores "unit not found" (rc 5), so a playbook's `pre_tasks` can notify it
+     before MongoDB is installed.
 
 ### Variables (`defaults/main.yml`)
 
@@ -87,7 +105,9 @@ Use it through a role that lists it in `meta/main.yml` dependencies:
 | `glibc_rseq_disable` | `true` |
 | `sysctl` | `vm.swappiness: 1`, `vm.overcommit_memory: 1`, `vm.zone_reclaim_mode: 0`, `net.ipv4.tcp_keepalive_time: 120` |
 | `readahead_kb` / `io_scheduler` | `16` / `none` |
-| `noatime` / `data_mount` | `true` / `/` |
+| `data_device` | `""` (no dedicated disk; `dbPath` stays on `/`) |
+| `data_label` / `data_fstype` | `mongodata` / `xfs` |
+| `noatime` / `data_mount` | `true` / `dbPath` with `data_device`, else `/` |
 | `limit_nofile` / `limit_nproc` | `64000` / `64000` |
 | `enable_firewall` / `firewall_zone` | `false` / `public` |
 

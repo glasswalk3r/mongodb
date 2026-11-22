@@ -32,6 +32,72 @@ create the first user in the same session. The playbook doesn't initiate the
 set or create users. It generates the keyfile in `replicas/keyfile` (ignored by
 git) on the first run and prints the connection string at the end.
 
+## Data disk and I/O throttling
+
+Each member keeps `dbPath` (`/var/lib/mongo`) on its own disk instead of the
+root file system:
+
+- **The disk:** a regular, dynamically allocated VDI in
+  `.vagrant/disks/<name>-data.vdi`, attached to SATA port 1 (`/dev/sdb` in the
+  guest). Its size is `data_disk_mb` in `config.yml`. Unlike the boot disk,
+  it's not part of the linked clone.
+- **Formatting and mounting:** `mongodb_basic` formats it as XFS with the label
+  `mongodata` and mounts it by label with `noatime` (`data_device` in the
+  Vagrantfile's `extra_vars`).
+- **Lifecycle:** `vagrant destroy` deletes it with the VM, and the next
+  `vagrant up` creates a blank one.
+
+The VMs have fixed VirtualBox names (`replicas-moe`, `replicas-larry`,
+`replicas-curly`), so `VBoxManage` commands don't need the UUID.
+
+### Throttling
+
+The data disk is attached to a bandwidth group named `datadisk`, created with a
+limit of 1000 MB/s, which doesn't throttle anything in practice. Change the
+limit at any time, including while the VM is running; it applies immediately:
+
+```bash
+VBoxManage bandwidthctl replicas-moe set datadisk --limit 5M     # throttle to 5 MB/s
+VBoxManage bandwidthctl replicas-moe set datadisk --limit 1000M  # back to unthrottled
+VBoxManage bandwidthctl replicas-moe list                        # current limit
+```
+
+Uppercase `K`/`M`/`G` are bytes per second; lowercase `k`/`m`/`g` are bits per
+second, so `5m` is eight times slower than `5M`.
+
+The limit lasts until you change it again, also across `vagrant halt`/`up`,
+because it's stored in the VM's configuration. It only covers the data disk:
+the OS disk, SSH and logs keep their full speed.
+
+Test the limit with real data, not zeros: the VDI is dynamically allocated and
+VirtualBox skips all-zero writes, so `dd if=/dev/zero` runs at full speed under
+any limit. `fio` fills its buffers with random data, so it's fine. Example
+measured on `moe` with `dd if=/dev/urandom bs=1M count=200 oflag=direct,sync`:
+115 MB/s unthrottled, 2.7 MB/s with `--limit 5M`.
+
+Don't remove the group (`bandwidthctl ... remove`): the Vagrantfile attaches
+the disk to it on every `vagrant up`, which then fails. Raise the limit
+instead.
+
+### Picking a limit
+
+1. Measure the disk's ceiling inside the VM, on the data disk
+   (`dnf install fio`):
+
+   ```bash
+   cd /var/lib/mongo
+   sudo fio --name=seqwrite --rw=write --bs=1M --size=512M --direct=1 \
+       --ioengine=libaio --iodepth=8 --filename=fio.test
+   sudo rm fio.test
+   ```
+
+2. Measure what `mongod` actually uses: run your write load against the
+   primary and watch the secondary with `iostat -xm 2 sdb` (`dnf install
+   sysstat`).
+3. Set the limit below that peak on one secondary, keep the write load going,
+   and watch the lag grow with `rs.printSecondaryReplicationInfo()` (see
+   [Verifying replication](#verifying-replication)).
+
 ## Commands
 
 Create users:

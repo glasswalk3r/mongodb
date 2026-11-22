@@ -3,6 +3,8 @@
 replica_set: foobar
 domain: alceu.org
 port: 27017
+# Size of each member's dedicated dbPath disk (dynamically allocated VDI).
+data_disk_mb: 10240
 # Member name => private IP. VirtualBox boots them in this order, and the
 # Ansible provisioner is attached to the last one, so it must stay last.
 nodes:

@@ -1,0 +1,84 @@
+---
+# Dedicated data disk mounted at db_path. Runs after the install (the mongod
+# user exists) and the SELinux policy (the db_path file context is defined),
+# but before anything starts mongod.
+
+- name: Check the data disk is a block device
+  ansible.builtin.stat:
+    path: "{{ data_device }}"
+  register: data_device_stat
+
+- name: Fail if the data disk is missing
+  ansible.builtin.assert:
+    that: data_device_stat.stat.isblk | default(false)
+    fail_msg: "{{ data_device }} is not a block device."
+
+# The label identifies the disk, so a renamed device (sdb becoming sdc) is
+# never formatted twice. blkid -L exits 2 when no file system has the label.
+- name: Look for the data file system by label
+  ansible.builtin.command: blkid -L {{ data_label }}
+  register: data_label_dev
+  changed_when: false
+  failed_when: data_label_dev.rc not in [0, 2]
+
+- name: Format the data disk
+  when: data_label_dev.rc == 2
+  block:
+    # blkid -p exits 2 when the device has no signature at all.
+    - name: Check the data disk is blank
+      ansible.builtin.command: blkid -p {{ data_device }}
+      register: data_device_probe
+      changed_when: false
+      failed_when: data_device_probe.rc not in [0, 2]
+
+    - name: Fail if the data disk already holds data
+      ansible.builtin.assert:
+        that: data_device_probe.rc == 2
+        fail_msg: >-
+          {{ data_device }} isn't blank and has no file system labeled
+          {{ data_label }}: {{ data_device_probe.stdout }}. Refusing to format it.
+
+    - name: Create the data file system
+      ansible.builtin.command: mkfs.{{ data_fstype }} -L {{ data_label }} {{ data_device }}
+      changed_when: true
+
+# Mounting over a populated dbPath would hide the data underneath.
+- name: Find existing files in dbPath
+  ansible.builtin.find:
+    paths: "{{ db_path }}"
+    file_type: any
+    hidden: true
+  register: db_path_files
+  when: db_path not in (ansible_facts.mounts | map(attribute='mount'))
+
+- name: Fail if dbPath already has data on another file system
+  ansible.builtin.assert:
+    that: db_path_files.matched | default(0) == 0
+    fail_msg: >-
+      {{ db_path }} holds {{ db_path_files.matched }} files that mounting
+      {{ data_device }} would hide. Move them away first.
+  when: db_path_files is not skipped
+
+- name: Mount the data file system
+  ansible.posix.mount:
+    path: "{{ db_path }}"
+    src: LABEL={{ data_label }}
+    fstype: "{{ data_fstype }}"
+    opts: "{{ 'defaults,noatime' if noatime else 'defaults' }}"
+    state: mounted
+
+# A fresh file system's root belongs to root and carries the wrong SELinux
+# label; files mongod creates inherit the label from this directory.
+- name: Set the owner of the data file system root
+  ansible.builtin.file:
+    path: "{{ db_path }}"
+    state: directory
+    owner: mongod
+    group: mongod
+    mode: "0755"
+
+- name: Restore the SELinux label of dbPath
+  ansible.builtin.command: restorecon -v {{ db_path }}
+  register: data_restorecon
+  changed_when: data_restorecon.stdout | length > 0
+  when: ansible_facts.selinux.status | default('disabled') == 'enabled'

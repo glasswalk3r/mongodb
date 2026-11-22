@@ -1,6 +1,7 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+require "fileutils"
 require "yaml"
 
 # Environment settings live in config.yml.
@@ -9,6 +10,12 @@ NODES = CONFIG.fetch("nodes")
 DEFAULT_PORT = CONFIG.fetch("port")
 DOMAIN = CONFIG.fetch("domain")
 REPLICA_SET = CONFIG.fetch("replica_set")
+DATA_DISK_MB = CONFIG.fetch("data_disk_mb")
+DISKS_DIR = File.join(__dir__, ".vagrant", "disks")
+# Bandwidth group of the data disk. Its limit starts high enough to never
+# throttle; lower it with VBoxManage bandwidthctl (see README.md).
+BANDWIDTH_GROUP = "datadisk"
+UNTHROTTLED = "1000M"
 
 Vagrant.configure("2") do |config|
   config.vm.box = "RockyLinux"
@@ -37,6 +44,42 @@ Vagrant.configure("2") do |config|
       node.vm.hostname = name
       node.hostmanager.aliases = ["#{name}.#{DOMAIN}"]
       node.vm.network "private_network", ip: ip
+
+      # Data disk for dbPath: a regular VDI on SATA port 1, outside the linked
+      # clone, attached to a bandwidth group so it can be throttled. The role
+      # formats and mounts it (data_device below). createmedium and
+      # bandwidthctl add only run when the VDI doesn't exist yet, that is, for
+      # a new VM: vagrant destroy deletes the attached disk with the VM.
+      data_disk = File.join(DISKS_DIR, "#{name}-data.vdi")
+      node.vm.provider "virtualbox" do |vb|
+        vb.name = "replicas-#{name}"
+        unless File.exist?(data_disk)
+          FileUtils.mkdir_p(DISKS_DIR)
+          vb.customize ["createmedium", "disk", "--filename", data_disk,
+                        "--size", DATA_DISK_MB, "--format", "VDI"]
+          vb.customize ["bandwidthctl", :id, "add", BANDWIDTH_GROUP,
+                        "--type", "disk", "--limit", UNTHROTTLED]
+        end
+        # --nonrotational: the host disk is an SSD (NVMe), so the guest sees
+        # rotational=0. --discard: passes TRIM through, so fstrim in the guest
+        # shrinks the dynamically allocated VDI after MongoDB frees space.
+        vb.customize ["storageattach", :id, "--storagectl", "SATA", "--port", 1,
+                      "--device", 0, "--type", "hdd", "--medium", data_disk,
+                      "--nonrotational", "on", "--discard", "on",
+                      "--bandwidthgroup", BANDWIDTH_GROUP]
+      end
+
+      # In case VirtualBox kept the disk registered or on disk, so the next
+      # vagrant up creates a fresh one.
+      node.trigger.after :destroy do |t|
+        t.ruby do
+          if File.exist?(data_disk)
+            system("VBoxManage", "closemedium", "disk", data_disk, "--delete",
+                   err: File::NULL)
+            FileUtils.rm_f(data_disk)
+          end
+        end
+      end
 
       # Vagrant's NetworkManager profile for the private network sets
       # gateway=192.168.56.1, adding a second default route. When it gets the
@@ -70,7 +113,8 @@ Vagrant.configure("2") do |config|
             cache_size_gb: 0.25,
             oplog_size_mb: 990,
             ftdc_dir_size_mb: 50,
-            enable_firewall: true
+            enable_firewall: true,
+            data_device: "/dev/sdb"
           }
         end
       end
