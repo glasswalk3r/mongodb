@@ -46,6 +46,26 @@ Vagrant.configure("2") do |config|
         ansible.host_vars = NODES.to_h { |n, i| [n, { "node_ip" => i }] }
       end
 
+      # VirtualBox boots the VMs one at a time, so provision once, from the
+      # last VM: a single ansible-playbook run then configures every member in
+      # parallel (one fork per host).
+      if name == NODES.keys.last
+        node.vm.provision "ansible" do |ansible|
+          ansible.playbook = "playbook.yml"
+          ansible.config_file = "ansible.cfg"
+          ansible.compatibility_mode = "2.0"
+          ansible.limit = "all"
+          ansible.host_vars = NODES.to_h {|key, value| [key, {bind_ip: "127.0.0.1,#{value}"}]}
+          ansible.extra_vars = {
+            replica_set_name: REPLICA_SET,
+            replica_set_members: NODES.keys.map {|hostname| "#{hostname}.#{DOMAIN}:#{DEFAULT_PORT}" },
+            cache_size_gb: 0.25,
+            oplog_size_mb: 990,
+            ftdc_dir_size_mb: 50,
+            enable_firewall: true
+          }
+        end
+      end
     end
   end
 end
