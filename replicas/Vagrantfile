@@ -1,12 +1,14 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-# Three-member replica set "rs0": one mongod on port 27017 per VM.
-NODES = {
-  "rs1" => "192.168.56.11",
-  "rs2" => "192.168.56.12",
-  "rs3" => "192.168.56.13",
-}
+require "yaml"
+
+# Environment settings live in config.yml.
+CONFIG = YAML.safe_load_file(File.join(__dir__, "config.yml"))
+NODES = CONFIG.fetch("nodes")
+DEFAULT_PORT = CONFIG.fetch("port")
+DOMAIN = CONFIG.fetch("domain")
+REPLICA_SET = CONFIG.fetch("replica_set")
 
 Vagrant.configure("2") do |config|
   config.vm.box = "RockyLinux"
