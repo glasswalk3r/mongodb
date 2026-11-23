@@ -3,9 +3,9 @@
   ansible.builtin.yum_repository:
     name: "mongodb-org-{{ version }}"
     description: MongoDB Repository
-    baseurl: "https://repo.mongodb.org/yum/redhat/{{ ansible_facts.distribution_major_version }}/mongodb-org/{{ version }}/x86_64/"
+    baseurl: "{{ repo_baseurl }}"
     gpgcheck: true
-    gpgkey: "https://pgp.mongodb.com/server-{{ version }}.asc"
+    gpgkey: "{{ repo_gpgkey }}"
     enabled: true
 
 - name: Install MongoDB packages

@@ -3,6 +3,11 @@
 version: "8.0"
 packages:
   - mongodb-org
+# Where the packages and the key that signs them come from. Point both at a
+# local mirror (e.g. file:// URLs, see replicas/sync-mongodb-repo.py) to avoid
+# downloading them on every VM.
+repo_baseurl: "https://repo.mongodb.org/yum/redhat/{{ ansible_facts.distribution_major_version }}/mongodb-org/{{ version }}/x86_64/"
+repo_gpgkey: "https://pgp.mongodb.com/server-{{ version }}.asc"
 
 # mongod port and paths, shared with the roles that write mongod.conf
 # (mongodb_replica_set, mongodb_sharding). The MongoDB SELinux policy only

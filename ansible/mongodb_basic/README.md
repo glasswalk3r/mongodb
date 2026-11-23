@@ -96,6 +96,7 @@ Use it through a role that lists it in `meta/main.yml` dependencies:
 | Variable | Default |
 |---|---|
 | `version` / `packages` | `"8.0"` / `[mongodb-org]` |
+| `repo_baseurl` / `repo_gpgkey` | `repo.mongodb.org` repository for `version` and the EL major version / `pgp.mongodb.com` key for `version` |
 | `mongod_port` | `27017` |
 | `db_path` / `log_path` | `/var/lib/mongo` / `/var/log/mongodb/mongod.log` |
 | `selinux_policy` | `true` |
