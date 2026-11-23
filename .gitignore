@@ -2,4 +2,7 @@
 .venv
 keyfile
 *.json
+# Local MongoDB package mirror (replicas/sync-mongodb-repo.py)
+mongodb-repo/
 
+__pycache__
